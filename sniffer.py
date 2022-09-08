@@ -25,6 +25,32 @@ def get_ip_address(supposedly_address):
     return ip_address
 
 
+class EthernetFrame:
+    @staticmethod
+    def get_mac_address(raw_addr):
+        str_bytes = map("{:02x}".format, raw_addr)
+        return ':'.join(str_bytes).upper()
+
+    def eth_header(self):
+        dst_mac, src_mac, proto = struct.unpack('!6s6sH', self.raw_data[:14])
+        return self.get_mac_address(dst_mac), self.get_mac_address(src_mac), socket.ntohs(proto)
+
+    def get_ethernet_data(self):
+        return self.data[14:]
+
+    def __str__(self):
+        return f"\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\tSource: {self.src_mac}\tProtocol: {self.proto}"
+
+    def __init__(self, raw_data):
+        self.data = raw_data
+        self.dst_mac, self.src_mac, self.proto = self.eth_header()
+
+
+class IPPacket:
+    def __init__(self, raw_data):
+        ip_header = struct.unpack('!BBHHHBBH4s4s', raw_data)
+
+
 class PacketSniffer:
     def __init__(self, local_ip_address=''):
         ip_address = get_ip_address(local_ip_address)
@@ -32,14 +58,23 @@ class PacketSniffer:
             self.local_address = False
         else:
             self.local_address = ip_address
+        self.sniff_socket = False
         try:
-            sniff_socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
+            self.sniff_socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
             print("Completed")
         except socket.error as msg:
             print(f"Socket could not be created. Error Code : " + str(msg))
         else:
             print("In Else-block")
 
+    def start_server(self):
+        print("Starting Sniffer ...")
+        while True:
+            raw_data = self.sniff_socket.recvfrom(65535)[0]
+            ethernet_frame = EthernetFrame(raw_data)
+            print(ethernet_frame)
+            if ethernet_frame.proto == 8:
+                ip_packet = IPPacket(ethernet_frame.get_ethernet_data())
 
 
 
