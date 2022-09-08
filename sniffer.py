@@ -47,8 +47,23 @@ class EthernetFrame:
 
 
 class IPPacket:
+    @staticmethod
+    def get_ip_address(address):
+        return '.'.join(map(str, address))
+
     def __init__(self, raw_data):
-        ip_header = struct.unpack('!BBHHHBBH4s4s', raw_data)
+        ip_header = struct.unpack('!BBHHHBBH4s4s', raw_data[:20])
+        self.version = ip_header[0] >> 4
+        self.hLen = ip_header[0] & 0xF
+        self.tos = ip_header[1]
+        self.total_len = ip_header[2]
+        self.unique_id = ip_header[3]
+        self.offset_flags = ip_header[4]
+        self.ttl = ip_header[5]
+        self.proto = socket.ntohs(ip_header[6])  # TODO: нужно проверить идею с порядком в сети
+        self.checksum = ip_header[7]
+        self.src_address = get_ip_address(ip_header[8])
+        self.dst_address = get_ip_address(ip_header[9])
 
 
 class PacketSniffer:
