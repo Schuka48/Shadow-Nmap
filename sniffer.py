@@ -1,6 +1,7 @@
 import socket
 import struct
 import os
+from datetime import datetime
 
 
 def is_valid_ip(ip_address):
@@ -32,14 +33,15 @@ class EthernetFrame:
         return ':'.join(str_bytes).upper()
 
     def eth_header(self):
-        dst_mac, src_mac, proto = struct.unpack('!6s6sH', self.raw_data[:14])
+        dst_mac, src_mac, proto = struct.unpack('!6s6sH', self.data[:14])
         return self.get_mac_address(dst_mac), self.get_mac_address(src_mac), socket.ntohs(proto)
 
     def get_ethernet_data(self):
         return self.data[14:]
 
     def __str__(self):
-        return f"\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\tSource: {self.src_mac}\tProtocol: {self.proto}"
+        return f"\n{datetime.now()}\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\t" \
+               f"Source: {self.src_mac}\tProtocol: {self.proto}"
 
     def __init__(self, raw_data):
         self.data = raw_data
@@ -48,10 +50,11 @@ class EthernetFrame:
 
 class IPPacket:
     @staticmethod
-    def get_ip_address(address):
+    def get_address(address):
         return '.'.join(map(str, address))
 
     def __init__(self, raw_data):
+        self.data = raw_data[20:]
         ip_header = struct.unpack('!BBHHHBBH4s4s', raw_data[:20])
         self.version = ip_header[0] >> 4
         self.hLen = ip_header[0] & 0xF
@@ -60,13 +63,28 @@ class IPPacket:
         self.unique_id = ip_header[3]
         self.offset_flags = ip_header[4]
         self.ttl = ip_header[5]
-        self.proto = socket.ntohs(ip_header[6])  # TODO: нужно проверить идею с порядком в сети
+        self.proto = ip_header[6]  # TODO: нужно проверить идею с порядком в сети
         self.checksum = ip_header[7]
-        self.src_address = get_ip_address(ip_header[8])
-        self.dst_address = get_ip_address(ip_header[9])
+        self.src_address = self.get_address(ip_header[8])
+        self.dst_address = self.get_address(ip_header[9])
 
     def __str__(self):
         return f"\n\tIP Packet:\n\t\t\tSource: {self.src_address}\tDestination: {self.dst_address}\t Proto: {self.proto}"
+
+    def get_ip_data(self):
+        return self.data
+
+
+class ICMP:
+    def __init__(self, raw_data):
+        icmp_header = struct.unpack("!BBHL", raw_data[:8])
+        self.type = icmp_header[0]
+        self.code = icmp_header[1]
+        self.checksum = icmp_header[2]
+        self.data = raw_data[8:]
+
+    def __str__(self):
+        return f"Checksum: {hex(self.checksum)}\tData: {self.data}"
 
 
 class PacketSniffer:
@@ -82,20 +100,27 @@ class PacketSniffer:
             print("Completed")
         except socket.error as msg:
             print(f"Socket could not be created. Error Code : " + str(msg))
-        else:
-            print("In Else-block")
 
     def start_server(self):
         print("Starting Sniffer ...")
-        while True:
-            raw_data = self.sniff_socket.recvfrom(65535)[0]
-            ethernet_frame = EthernetFrame(raw_data)
-            print(ethernet_frame)
-            if ethernet_frame.proto == 8:
-                ip_packet = IPPacket(ethernet_frame.get_ethernet_data())
-                print(ip_packet)
+        try:
+            while True:
+                raw_data = self.sniff_socket.recvfrom(65535)[0]
+                ethernet_frame = EthernetFrame(raw_data)
+                if ethernet_frame.proto == 8:
+                    ip_packet = IPPacket(ethernet_frame.get_ethernet_data())
+                    if ip_packet.dst_address == "10.33.102.104":
+                        print(ethernet_frame)
+                        print(ip_packet)
+                        if ip_packet.proto == 1:
+                            icmp_packet = ICMP(ip_packet.get_ip_data())
+                            print(icmp_packet)
+        except KeyboardInterrupt:
+            print("\nStop Sniffer ...")
+            print("Good By!")
 
 
 if __name__ == '__main__':
     packet_sniffer = PacketSniffer("255.255.255.255")
     print(packet_sniffer.local_address)
+    packet_sniffer.start_server()
