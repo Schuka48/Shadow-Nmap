@@ -65,6 +65,9 @@ class IPPacket:
         self.src_address = get_ip_address(ip_header[8])
         self.dst_address = get_ip_address(ip_header[9])
 
+    def __str__(self):
+        return f"\n\tIP Packet:\n\t\t\tSource: {self.src_address}\tDestination: {self.dst_address}\t Proto: {self.proto}"
+
 
 class PacketSniffer:
     def __init__(self, local_ip_address=''):
@@ -90,8 +93,7 @@ class PacketSniffer:
             print(ethernet_frame)
             if ethernet_frame.proto == 8:
                 ip_packet = IPPacket(ethernet_frame.get_ethernet_data())
-
-
+                print(ip_packet)
 
 
 if __name__ == '__main__':
