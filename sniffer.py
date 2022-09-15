@@ -40,7 +40,7 @@ class EthernetFrame:
         return self.data[14:]
 
     def __str__(self):
-        return f"\n{datetime.now()}\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\t" \
+        return f"{print('-' * 175)}\n{datetime.now()}\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\t" \
                f"Source: {self.src_mac}\tProtocol: {self.proto}"
 
     def __init__(self, raw_data):
@@ -54,10 +54,10 @@ class IPPacket:
         return '.'.join(map(str, address))
 
     def __init__(self, raw_data):
-        self.data = raw_data[20:]
         ip_header = struct.unpack('!BBHHHBBH4s4s', raw_data[:20])
         self.version = ip_header[0] >> 4
         self.hLen = ip_header[0] & 0xF
+        self.header_len = self.hLen * 4
         self.tos = ip_header[1]
         self.total_len = ip_header[2]
         self.unique_id = ip_header[3]
@@ -67,9 +67,10 @@ class IPPacket:
         self.checksum = ip_header[7]
         self.src_address = self.get_address(ip_header[8])
         self.dst_address = self.get_address(ip_header[9])
+        self.data = raw_data[self.header_len:]
 
     def __str__(self):
-        return f"\n\tIP Packet:\n\t\t\tSource: {self.src_address}\tDestination: {self.dst_address}\t Proto: {self.proto}"
+        return f"\tIP Packet:\n\t\t\tSource: {self.src_address}\tDestination: {self.dst_address}\t Proto: {self.proto}"
 
     def get_ip_data(self):
         return self.data
@@ -77,14 +78,14 @@ class IPPacket:
 
 class ICMP:
     def __init__(self, raw_data):
-        icmp_header = struct.unpack("!BBHL", raw_data[:8])
+        icmp_header = struct.unpack("!ssHL8x", raw_data[:16])
         self.type = icmp_header[0]
         self.code = icmp_header[1]
         self.checksum = icmp_header[2]
-        self.data = raw_data[8:]
+        self.data = raw_data[16:]
 
     def __str__(self):
-        return f"Checksum: {hex(self.checksum)}\tData: {self.data}"
+        return f"Checksum: {hex(self.checksum)}\tData: {self.data}\tLen: {len(self.data)}"
 
 
 class PacketSniffer:
