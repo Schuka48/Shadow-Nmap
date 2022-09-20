@@ -113,7 +113,7 @@ class TCP:
         return f"\t\tTCP\t Src_Port: {self.src_port}\tDst_Port: {self.dst_port}\n" \
                f"\t\t\t Sequence: {self.sequence}\tAcknowledgment: {self.acknowledgment}\n" \
                f"\t\t\t Flags URG:{self.flag_urg} ACK:{self.flag_ack} PSH:{self.flag_psh} " \
-               f"RST:{self.flag_syn} SYN:{self.flag_syn} FIN:{self.flag_fin}"
+               f"RST:{self.flag_rst} SYN:{self.flag_syn} FIN:{self.flag_fin}"
 
 
 class UDP:
@@ -121,7 +121,7 @@ class UDP:
         udp_header = struct.unpack("!HHHH", raw_data[:8])
         self.src_port = udp_header[0]
         self.dst_port = udp_header[1]
-        self.length = udp_header[2]  # Переменная обозначает длину всего UDP-пакета, учитывая заголовок
+        self.length = udp_header[2]  #  Переменная обозначает длину всего UDP-пакета, учитывая заголовок
         self.chk_sum = udp_header[3]
         self.data = raw_data[8:]
 
@@ -145,37 +145,44 @@ class PacketSniffer:
             print("Completed")
         except socket.error as msg:
             print(f"Socket could not be created. Error Code : " + str(msg))
+        self.finished = False
 
-    def start_server(self):
+    def sniffer_handler(self):
+        raw_data = self.sniff_socket.recvfrom(65535)[0]
+        ethernet_frame = EthernetFrame(raw_data)
+        # print(ethernet_frame)
+        if ethernet_frame.proto == 8:
+            ip_packet = IPPacket(ethernet_frame.get_data())
+            # print(ip_packet)
+            if ip_packet.proto == 1:
+                icmp_packet = ICMP(ip_packet.get_data())
+                # print(icmp_packet)
+            elif ip_packet.proto == 6:
+                if ip_packet.dst_address == "10.33.102.104":
+                    tcp_packet = TCP(ip_packet.get_data())
+                if ip_packet.dst_address == "10.33.102.104" and tcp_packet.flag_syn == 1:
+                    print(ethernet_frame)
+                    print(ip_packet)
+                    print(tcp_packet)
+            elif ip_packet.proto == 17:
+                udp_packet = UDP(ip_packet.get_data())
+                print(udp_packet)
+
+    def start_sniffer(self):
         print("Starting Sniffer ...")
         try:
-            while True:
-                raw_data = self.sniff_socket.recvfrom(65535)[0]
-                ethernet_frame = EthernetFrame(raw_data)
-                if ethernet_frame.proto == 8:
-                    ip_packet = IPPacket(ethernet_frame.get_data())
-                    if ip_packet.proto == 1:
-                        icmp_packet = ICMP(ip_packet.get_data())
-                        print(ethernet_frame)
-                        print(ip_packet)
-                        print(icmp_packet)
-                    elif ip_packet.proto == 6:
-                        tcp_packet = TCP(ip_packet.get_data())
-                        if ip_packet.src_address == "192.168.148.129":
-                            print(ethernet_frame)
-                            print(ip_packet)
-                            print(tcp_packet)
-                    elif ip_packet.proto == 17:
-                        udp_packet = UDP(ip_packet.get_data())
-                        print(ethernet_frame)
-                        print(ip_packet)
-                        print(udp_packet)
+            while not self.finished:
+                self.sniffer_handler()
         except KeyboardInterrupt:
             print("\nStop Sniffer ...")
             print("Good By!")
 
+    def stop_sniffer(self):
+        print("\nStopping Sniffer ...")
+        self.finished = True
+
 
 if __name__ == '__main__':
-    packet_sniffer = PacketSniffer("255.255.255.255")
-    print(packet_sniffer.local_address)
-    packet_sniffer.start_server()
+    packet_sniffer = PacketSniffer()
+    packet_sniffer.start_sniffer()
+
