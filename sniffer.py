@@ -4,6 +4,11 @@ import os
 from datetime import datetime
 
 
+TAB_1 = '\t'
+TAB_2 = '\t\t'
+TAB_3 = '\t\t\t'
+
+
 def is_valid_ip(ip_address):
     octets = ip_address.split('.')
     if len(octets) != 4:
@@ -26,6 +31,43 @@ def get_ip_address(supposedly_address):
     return ip_address
 
 
+class PacketTemplate:
+    """Этот класс отражает структуру шаблона, который применяется для определения принадлежности
+    пакета к целевому траффику"""
+    pass
+
+
+class PacketChecker:
+    """Этот класс предназначен для сверки поступившего пакета и набора шаблонов, которые загрузил пользователь"""
+    def __init__(self):
+        self.templates = []
+
+    def load_templates(self, templates_path):
+        """Загрузка шаблонов из директории"""
+        pass
+
+    def compare(self, packet: object):
+        """Эта функция предназначена для проверки принадлежности пакета сниффера к трафику САЗ"""
+        pass
+
+
+class Packet:
+    def __init__(self, eth_frame, ip_packet=None, transport_segment=None):
+        self.channel_layer = eth_frame
+        self.ip_layer = ip_packet
+        self.transport_layer = transport_segment
+
+    def __str__(self):
+        result = ""
+        if self.ip_layer is None:
+            result = str(self.channel_layer) + '\n' + '-' * 175
+        elif self.transport_layer is None:
+            result = str(self.channel_layer) + str(self.ip_layer) + '\n' + '-' * 175
+        else:
+            result = str(self.channel_layer) + str(self.ip_layer) + str(self.transport_layer) + '\n' + '-' * 175
+        return result
+
+
 class EthernetFrame:
     @staticmethod
     def get_mac_address(raw_addr):
@@ -40,8 +82,8 @@ class EthernetFrame:
         return self.data[14:]
 
     def __str__(self):
-        return f"{print('-' * 175)}\n{datetime.now()}\nEthernet Frame:\n\t\tDestination: {self.dst_mac}\t" \
-               f"Source: {self.src_mac}\tProtocol: {self.proto}"
+        return f"{'-' * 175} + \n{datetime.now()}\nEthernet Frame:\n{TAB_1}Destination: {self.dst_mac}\t" \
+               f"Source: {self.src_mac} Protocol: {self.proto}"
 
     def __init__(self, raw_data):
         self.data = raw_data
@@ -70,7 +112,8 @@ class IPPacket:
         self.data = raw_data[self.header_len:]
 
     def __str__(self):
-        return f"\tIP Packet:\n\t\t\tSource: {self.src_address}\tDestination: {self.dst_address}\t Proto: {self.proto}"
+        return f"\n{TAB_1} IP Packet:\n{TAB_2}Source: {self.src_address}{TAB_1}Destination: {self.dst_address} " \
+               f"Proto: {self.proto} "
 
     def get_data(self):
         return self.data
@@ -85,7 +128,7 @@ class ICMP:
         self.data = raw_data[16:]
 
     def __str__(self):
-        return f"\t\t\t\tICMP\t\tChecksum: {hex(self.checksum)}\tData: {self.data}\tLen: {len(self.data)}"
+        return f"\n{TAB_2}ICMP\n{TAB_3}Checksum: {hex(self.checksum)} Data:{self.data} Len: {len(self.data)}"
 
 
 class TCP:
@@ -110,9 +153,9 @@ class TCP:
         return self.data
 
     def __str__(self):
-        return f"\t\tTCP\t Src_Port: {self.src_port}\tDst_Port: {self.dst_port}\n" \
-               f"\t\t\t Sequence: {self.sequence}\tAcknowledgment: {self.acknowledgment}\n" \
-               f"\t\t\t Flags URG:{self.flag_urg} ACK:{self.flag_ack} PSH:{self.flag_psh} " \
+        return f"\n{TAB_2}TCP\n{TAB_3} Src_Port: {self.src_port}{TAB_1}Dst_Port: {self.dst_port}\n" \
+               f"{TAB_3} Sequence: {self.sequence}{TAB_1}Acknowledgment: {self.acknowledgment}\n" \
+               f"{TAB_3} Flags URG:{self.flag_urg} ACK:{self.flag_ack} PSH:{self.flag_psh} " \
                f"RST:{self.flag_rst} SYN:{self.flag_syn} FIN:{self.flag_fin}"
 
 
@@ -121,7 +164,7 @@ class UDP:
         udp_header = struct.unpack("!HHHH", raw_data[:8])
         self.src_port = udp_header[0]
         self.dst_port = udp_header[1]
-        self.length = udp_header[2]  #  Переменная обозначает длину всего UDP-пакета, учитывая заголовок
+        self.length = udp_header[2]  # Переменная обозначает длину всего UDP-пакета, учитывая заголовок
         self.chk_sum = udp_header[3]
         self.data = raw_data[8:]
 
@@ -142,7 +185,6 @@ class PacketSniffer:
         self.sniff_socket = False
         try:
             self.sniff_socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(3))
-            print("Completed")
         except socket.error as msg:
             print(f"Socket could not be created. Error Code : " + str(msg))
         self.finished = False
@@ -150,29 +192,29 @@ class PacketSniffer:
     def sniffer_handler(self):
         raw_data = self.sniff_socket.recvfrom(65535)[0]
         ethernet_frame = EthernetFrame(raw_data)
-        # print(ethernet_frame)
+        packet = Packet(ethernet_frame)
         if ethernet_frame.proto == 8:
             ip_packet = IPPacket(ethernet_frame.get_data())
-            # print(ip_packet)
+            packet.ip_layer = ip_packet
             if ip_packet.proto == 1:
                 icmp_packet = ICMP(ip_packet.get_data())
-                # print(icmp_packet)
+                packet.transport_layer = icmp_packet
+                print(packet)
             elif ip_packet.proto == 6:
-                if ip_packet.dst_address == "10.33.102.104":
-                    tcp_packet = TCP(ip_packet.get_data())
-                if ip_packet.dst_address == "10.33.102.104" and tcp_packet.flag_syn == 1:
-                    print(ethernet_frame)
-                    print(ip_packet)
-                    print(tcp_packet)
+                tcp_packet = TCP(ip_packet.get_data())
+                packet.transport_layer = tcp_packet
+                print(packet)
             elif ip_packet.proto == 17:
                 udp_packet = UDP(ip_packet.get_data())
-                print(udp_packet)
+                packet.transport_layer = udp_packet
+                print(packet)
 
     def start_sniffer(self):
         print("Starting Sniffer ...")
         try:
             while not self.finished:
                 self.sniffer_handler()
+                # self.finished = True
         except KeyboardInterrupt:
             print("\nStop Sniffer ...")
             print("Good By!")
@@ -185,4 +227,3 @@ class PacketSniffer:
 if __name__ == '__main__':
     packet_sniffer = PacketSniffer()
     packet_sniffer.start_sniffer()
-
