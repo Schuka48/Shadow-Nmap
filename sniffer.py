@@ -1,12 +1,18 @@
 import socket
 import struct
 import os
+import sys
 from datetime import datetime
 
 
 TAB_1 = '\t'
 TAB_2 = '\t\t'
 TAB_3 = '\t\t\t'
+
+
+def vprint(msg, is_verbose):
+    if is_verbose:
+        print(msg)
 
 
 def is_valid_ip(ip_address):
@@ -39,12 +45,24 @@ class PacketTemplate:
 
 class PacketChecker:
     """Этот класс предназначен для сверки поступившего пакета и набора шаблонов, которые загрузил пользователь"""
-    def __init__(self):
+    def __init__(self, path_to_dir):
         self.templates = []
+        self.path = path_to_dir
 
-    def load_templates(self, templates_path):
+    def load_templates(self):
         """Загрузка шаблонов из директории"""
-        pass
+        current_work_dir = os.getcwd()
+        template_dir = current_work_dir + os.sep + self.path
+        for template_file in os.listdir(template_dir):
+            try:
+                filename = template_dir + os.sep + template_file
+                with open(filename, "rb") as file:
+                    """Здесь необходимо написать формат шаблона для пакетов"""
+                    file.readline()
+                    return True
+            except OSError:
+                print("Could not open/read file:", template_file)
+                return False
 
     def compare(self, packet: object):
         """Эта функция предназначена для проверки принадлежности пакета сниффера к трафику САЗ"""
@@ -172,11 +190,11 @@ class UDP:
         return self.data
 
     def __str__(self):
-        return f"\t\tUDP\t Src_Port: {self.src_port}\tDst_Port: {self.dst_port}\tLength: {self.length}"
+        return f"\n{TAB_2}UDP\n{TAB_3} Src_Port: {self.src_port}{TAB_1}Dst_Port: {self.dst_port}{TAB_1}Length: {self.length}"
 
 
 class PacketSniffer:
-    def __init__(self, local_ip_address=''):
+    def __init__(self, local_ip_address='', path_to_dir='packet_templates'):
         ip_address = get_ip_address(local_ip_address)
         if not ip_address:
             self.local_address = False
@@ -188,8 +206,9 @@ class PacketSniffer:
         except socket.error as msg:
             print(f"Socket could not be created. Error Code : " + str(msg))
         self.finished = False
+        self.checker = PacketChecker(path_to_dir)
 
-    def sniffer_handler(self):
+    def packet_handler(self):
         raw_data = self.sniff_socket.recvfrom(65535)[0]
         ethernet_frame = EthernetFrame(raw_data)
         packet = Packet(ethernet_frame)
@@ -208,20 +227,31 @@ class PacketSniffer:
                 udp_packet = UDP(ip_packet.get_data())
                 packet.transport_layer = udp_packet
                 print(packet)
+        return packet
+
+    def check_packet(self, packet):
+        pass
+
+    def stop_sniffer(self):
+        """Эта функция будет останавливать открытые сокеты в системе"""
+        print("\nStopping Sniffer ...")
+        sys.exit(0)
 
     def start_sniffer(self):
         print("Starting Sniffer ...")
+        print("Loading Packet Templates ...")
+        if self.checker.load_templates():
+            print("Successful loading of templates [+]")
+        else:
+            print("Error, when loading templates")
+            self.finished = True
         try:
             while not self.finished:
-                self.sniffer_handler()
-                # self.finished = True
+                packet = self.packet_handler()
+                self.check_packet(packet)
         except KeyboardInterrupt:
-            print("\nStop Sniffer ...")
-            print("Good By!")
-
-    def stop_sniffer(self):
-        print("\nStopping Sniffer ...")
-        self.finished = True
+            pass
+        self.stop_sniffer()
 
 
 if __name__ == '__main__':
