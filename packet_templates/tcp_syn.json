@@ -1,0 +1,15 @@
+{
+  "Ethernet Frame": {
+    "Destination MAC": "AA:BB:CC:DD:EE:FF",
+    "Source MAC": "00:0C:29:AE:CF:29",
+    "Proto": 8
+  },
+  "IP": {
+    "Source": "192.168.148.129",
+    "Destination": "192.168.148.1",
+    "Proto": 6
+  },
+  "TCP": {
+    "Test": true
+  }
+}
