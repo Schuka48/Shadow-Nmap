@@ -10,6 +10,13 @@
     "Proto": 6
   },
   "TCP": {
-    "Test": true
+    "Flags": {
+      "URG": 0,
+      "ACK": 0,
+      "PSH": 0,
+      "RST": 0,
+      "SYN": 0,
+      "FIN": 0
+    }
   }
 }

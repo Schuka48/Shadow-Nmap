@@ -2,6 +2,7 @@ import socket
 import struct
 import os
 import sys
+import json
 from datetime import datetime
 
 
@@ -37,40 +38,57 @@ def get_ip_address(supposedly_address):
     return ip_address
 
 
+class WrongValue(Exception):
+    """The class is designed to handle incorrectly passed parameters to the Packet class constructor"""
+
+    def __init__(self):
+        self.message = "Parameters of the Packet() constructor are missing"
+        super().__init__(self.message)
+
+
 class PacketTemplate:
-    """Этот класс отражает структуру шаблона, который применяется для определения принадлежности
-    пакета к целевому траффику"""
+    """This class defines the structure of the pattern that is used to define packet filtering"""
     pass
 
 
 class PacketChecker:
-    """Этот класс предназначен для сверки поступившего пакета и набора шаблонов, которые загрузил пользователь"""
+    """This class is designed to reconcile the incoming packet and the set of templates that the user has loaded"""
     def __init__(self, path_to_dir):
-        self.templates = []
+        self.templates = []  # TODO: To store templates, use a dictionary of type -> {"-sS": template_object}
         self.path = path_to_dir
+        self.current_template = None
 
     def load_templates(self):
-        """Загрузка шаблонов из директории"""
+        """Downloading templates from a directory"""
         current_work_dir = os.getcwd()
         template_dir = current_work_dir + os.sep + self.path
         for template_file in os.listdir(template_dir):
             try:
                 filename = template_dir + os.sep + template_file
                 with open(filename, "rb") as file:
-                    """Здесь необходимо написать формат шаблона для пакетов"""
-                    file.readline()
-                    return True
+                    template_text = file.read()
+                    template_json = json.loads(template_text)
+                    # template = self.parse_template(template_json)
+                    # self.templates.add(template)
             except OSError:
                 print("Could not open/read file:", template_file)
                 return False
+        return True
 
-    def compare(self, packet: object):
-        """Эта функция предназначена для проверки принадлежности пакета сниффера к трафику САЗ"""
+    def choose_template(self, template):
+        """The function allows you to select a template for filtering"""
         pass
 
+    def compare(self, packet: object):
+        """This function is designed to check if the sniffer packet belongs to the SAS traffic"""
+        pass
+
+    def parse_template(self, template_json):
+        """Parameters of the Packet() constructor are missing"""
+        pass
 
 class Packet:
-    def __init__(self, eth_frame, ip_packet=None, transport_segment=None):
+    def __init__(self, eth_frame, ip_packet=None, transport_segment=None, **kwargs):
         self.channel_layer = eth_frame
         self.ip_layer = ip_packet
         self.transport_layer = transport_segment
@@ -245,10 +263,17 @@ class PacketSniffer:
         else:
             print("Error, when loading templates")
             self.finished = True
+            sys.exit(1)
+        self.checker.choose_template("-sS")
         try:
             while not self.finished:
                 packet = self.packet_handler()
-                self.check_packet(packet)
+                if self.checker.compare(packet):
+                    vprint("Relevant", True)
+                #    TODO: Transmitting a packet to a translator
+                else:
+                    vprint("Filtered", True)
+                    continue
         except KeyboardInterrupt:
             pass
         self.stop_sniffer()
