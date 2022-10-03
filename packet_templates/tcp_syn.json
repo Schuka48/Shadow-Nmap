@@ -1,5 +1,6 @@
 {
-  "Ethernet Frame": {
+  "Packet": {
+    "Ethernet Frame": {
     "Destination MAC": "AA:BB:CC:DD:EE:FF",
     "Source MAC": "00:0C:29:AE:CF:29",
     "Proto": 8
@@ -18,5 +19,10 @@
       "SYN": 0,
       "FIN": 0
     }
+  }
+  },
+  "Route": {
+    "Length": 4,
+    "Path": "54145 -> 96315 -> 47823 -> 12493"
   }
 }
